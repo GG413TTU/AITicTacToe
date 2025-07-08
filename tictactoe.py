@@ -177,6 +177,9 @@ class Game:
         self.player = 1   #1-cross  #2-circles
         self.gamemode = 'ai' # pvp or ai
         self.running = True
+        self.last_ai_move = None
+        self.rewinds_remaining = 1  # Limit of 1 rewinds per game
+        self.last_rewind_time = 0
         self.show_lines()
 
     # --- DRAW METHODS ---
@@ -215,6 +218,8 @@ class Game:
     def make_move(self, row, col):
         self.board.mark_sqr(row, col, self.player)
         self.draw_fig(row, col)
+        if self.player == self.ai.player:
+            self.last_ai_move = (row, col)
         self.next_turn()
 
     def next_turn(self):
@@ -228,6 +233,78 @@ class Game:
 
     def reset(self):
         self.__init__()
+    
+    def rewind_move(self):
+        # Prevent rewinding if: no moves to undo, game over, player's turn, or no rewinds left
+        if (not self.last_ai_move or 
+            not self.running or 
+            self.rewinds_remaining <= 0):
+            print("Cannot rewind now!")
+            self.flash_screen(color=(255, 50, 50), duration=200)  # Red flash
+            return False
+
+        row, col = self.last_ai_move
+        
+        # Visual effect before undo
+        self.flash_square(row, col, color=(250, 200, 0))  # Yellow flash
+        
+        # Undo the move
+        self.board.squares[row][col] = 0
+        self.board.marked_sqrs -= 1
+
+        #Switch back to AI turn to replay 
+        self.player = 1
+        self.last_ai_move = None
+        self.rewinds_remaining -= 1
+        
+        # Redraw everything
+        self.show_lines()
+        self.redraw_all_figures()
+        
+        # Sound feedback (uncomment if you have sound)
+        # pygame.mixer.Sound.play(rewind_sound)
+        
+        print(f"Rewind used! {self.rewinds_remaining} rewinds left")
+        return True
+
+    def flash_screen(self, color, duration):
+        """Flash the entire screen with a color"""
+        flash_surface = pygame.Surface((WIDTH, HEIGHT))
+        flash_surface.set_alpha(150)
+        flash_surface.fill(color)
+        screen.blit(flash_surface, (0, 0))
+        pygame.display.update()
+        pygame.time.delay(duration)
+        self.show_lines()
+        self.redraw_all_figures()
+
+    def flash_square(self, row, col, color):
+        """Flash a single square"""
+        x = col * SQSIZE
+        y = row * SQSIZE
+        flash_surface = pygame.Surface((SQSIZE, SQSIZE))
+        flash_surface.set_alpha(180)
+        flash_surface.fill(color)
+        screen.blit(flash_surface, (x, y))
+        pygame.display.update()
+        pygame.time.delay(300)
+
+    def redraw_all_figures(self):
+        """Redraw all X's and O's on the board"""
+        for row in range(ROWS):
+            for col in range(COLS):
+                if self.board.squares[row][col] == 1:
+                    # Save current player, draw as player 1, then restore
+                    original_player = self.player
+                    self.player = 1
+                    self.draw_fig(row, col)
+                    self.player = original_player
+                elif self.board.squares[row][col] == 2:
+                    # Save current player, draw as player 2, then restore
+                    original_player = self.player
+                    self.player = 2
+                    self.draw_fig(row, col)
+                    self.player = original_player
 
 def main():
 
@@ -269,6 +346,14 @@ def main():
                 # 1-random ai
                 if event.key == pygame.K_1:
                     ai.level = 1
+                # u-undo
+                if event.key == pygame.K_u:
+                     if not game.rewind_move():  # Only show message if rewind failed
+                        font = pygame.font.SysFont(None, 30)
+                        text = font.render("Can't rewind now!", True, (255, 0, 0))
+                        screen.blit(text, (WIDTH//2 - 80, 10))
+                        pygame.display.update()
+                        pygame.time.delay(1000)
 
             # click event
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -296,7 +381,9 @@ def main():
 
             if game.isover():
                 game.running = False
-            
+
+       
         pygame.display.update()
+       
 
 main()
