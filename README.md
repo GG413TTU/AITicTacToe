@@ -5,6 +5,7 @@
 - press '0' to change ai level to 0 (random)
 - press '1' to change ai level to 1 (impossible)
 - press 'r' to restart the game
+- press 'u' to undo the ai move (only one undo)
 
 # Game Snapshots
 
